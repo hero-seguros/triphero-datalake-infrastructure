@@ -162,7 +162,12 @@ jobs:
         if: steps.apply.outcome == 'failure'
         run: |
           echo "⚠️ Apply failed! Running terraform destroy to cleanup..."
-          terraform destroy -auto-approve -var-file=environments/prod.tfvars 2>&1 | tee destroy-output.txt
+          # Target destroy MSK cluster first (it uses the configuration)
+          terraform destroy -target=aws_msk_cluster.main -auto-approve -var-file=environments/prod.tfvars 2>&1 | tee destroy-output.txt
+          echo "" >> destroy-output.txt
+          echo "=== Destroying remaining resources ===" >> destroy-output.txt
+          # Then destroy everything else
+          terraform destroy -auto-approve -var-file=environments/prod.tfvars 2>&1 | tee -a destroy-output.txt
       
       - name: Save Destroy Output
         if: steps.apply.outcome == 'failure'
