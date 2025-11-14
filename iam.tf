@@ -5,7 +5,7 @@ data "aws_iam_policy_document" "debezium_assume_role" {
 
     principals {
       type        = "Federated"
-      identifiers = [data.aws_eks_cluster.main.identity[0].oidc[0].issuer]
+      identifiers = [data.aws_iam_openid_connect_provider.eks.arn]
     }
 
     actions = ["sts:AssumeRoleWithWebIdentity"]

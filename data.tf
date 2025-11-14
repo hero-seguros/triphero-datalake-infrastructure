@@ -36,3 +36,8 @@ data "aws_subnets" "public" {
 data "aws_eks_cluster" "main" {
   name = "${var.project_name}-${var.environment}-cluster"
 }
+
+# EKS OIDC Provider
+data "aws_iam_openid_connect_provider" "eks" {
+  url = data.aws_eks_cluster.main.identity[0].oidc[0].issuer
+}
