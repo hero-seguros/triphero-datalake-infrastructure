@@ -43,12 +43,6 @@ output "debezium_role_name" {
   value       = aws_iam_role.debezium.name
 }
 
-# CloudWatch Outputs
-output "msk_log_group_name" {
-  description = "CloudWatch log group for MSK cluster"
-  value       = aws_cloudwatch_log_group.msk.name
-}
-
 # Connection Info
 output "kafka_connection_info" {
   description = "Information to connect to Kafka cluster"

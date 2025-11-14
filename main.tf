@@ -70,6 +70,7 @@ resource "aws_msk_cluster" "main" {
   cluster_name           = "${var.project_name}-${var.environment}-msk"
   kafka_version          = var.kafka_version
   number_of_broker_nodes = var.msk_number_of_broker_nodes
+  enhanced_monitoring    = "DEFAULT"
 
   broker_node_group_info {
     instance_type  = var.msk_instance_type
@@ -100,26 +101,18 @@ resource "aws_msk_cluster" "main" {
     }
   }
 
-  logging_info {
-    broker_logs {
-      cloudwatch_logs {
-        enabled   = true
-        log_group = aws_cloudwatch_log_group.msk.name
-      }
-    }
-  }
+  # Basic monitoring only (no enhanced monitoring)
+  # CloudWatch logs disabled to reduce costs
+  # logging_info {
+  #   broker_logs {
+  #     cloudwatch_logs {
+  #       enabled   = false
+  #     }
+  #   }
+  # }
 
   tags = {
     Name = "${var.project_name}-${var.environment}-msk"
   }
 }
 
-# CloudWatch Log Group for MSK
-resource "aws_cloudwatch_log_group" "msk" {
-  name              = "/aws/msk/${var.project_name}-${var.environment}"
-  retention_in_days = 7
-
-  tags = {
-    Name = "${var.project_name}-${var.environment}-msk-logs"
-  }
-}
