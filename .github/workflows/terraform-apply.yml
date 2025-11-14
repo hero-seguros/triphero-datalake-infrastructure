@@ -158,7 +158,21 @@ jobs:
               });
             }
       
-      - name: Apply Failed - Add Label
+      - name: Terraform Destroy on Failure
+        if: steps.apply.outcome == 'failure'
+        run: |
+          echo "⚠️ Apply failed! Running terraform destroy to cleanup..."
+          terraform destroy -auto-approve -var-file=environments/prod.tfvars 2>&1 | tee destroy-output.txt
+      
+      - name: Save Destroy Output
+        if: steps.apply.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-destroy-prod-${{ github.sha }}
+          path: destroy-output.txt
+          retention-days: 90
+      
+      - name: Apply Failed - Add Label and Comment
         if: steps.apply.outcome == 'failure'
         uses: actions/github-script@v7
         with:
@@ -175,4 +189,11 @@ jobs:
               repo: context.repo.repo,
               issue_number: context.issue.number,
               name: 'terraform:apply'
+            });
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## ❌ Terraform Apply Failed\n\n**Action Taken:** Ran \`terraform destroy\` to cleanup partial resources\n\n### Next Steps:\n1. Review the apply error in artifacts\n2. Fix the issue in code\n3. Push new commit\n4. Re-add label \`terraform:apply\` to retry\n\n📦 **Destroy artifact:** \`terraform-destroy-prod-${{ github.sha }}\``
             });

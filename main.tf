@@ -48,8 +48,8 @@ resource "aws_msk_configuration" "main" {
   kafka_versions    = [var.kafka_version]
   server_properties = <<PROPERTIES
 auto.create.topics.enable=true
-default.replication.factor=2
-min.insync.replicas=1
+default.replication.factor=3
+min.insync.replicas=2
 num.io.threads=8
 num.network.threads=5
 num.replica.fetchers=2

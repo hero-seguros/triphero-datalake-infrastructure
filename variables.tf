@@ -34,7 +34,7 @@ variable "vpc_sa_east_1_id" {
 variable "kafka_version" {
   description = "Kafka version for MSK"
   type        = string
-  default     = "3.9.x"
+  default     = "3.8.x"
 }
 
 variable "msk_instance_type" {
@@ -46,7 +46,7 @@ variable "msk_instance_type" {
 variable "msk_number_of_broker_nodes" {
   description = "Number of broker nodes in MSK cluster (must be multiple of AZs)"
   type        = number
-  default     = 2
+  default     = 3
 }
 
 variable "msk_ebs_volume_size" {
