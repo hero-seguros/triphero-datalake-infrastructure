@@ -34,7 +34,7 @@ data "aws_subnets" "public" {
 
 # EKS Cluster (for Debezium integration)
 data "aws_eks_cluster" "main" {
-  name = "${var.project_name}-${var.environment}"
+  name = "${var.project_name}-${var.environment}-cluster"
 }
 
 # EKS OIDC Provider
