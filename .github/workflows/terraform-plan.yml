@@ -1,0 +1,193 @@
+name: Terraform Plan
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '*.tf'
+      - 'environments/**'
+      - '.github/workflows/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  bootstrap-check:
+    name: Check Bootstrap
+    uses: ./.github/workflows/bootstrap-reusable.yml
+    with:
+      aws_region: us-east-2
+      project_name: triphero-datalake
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+  terraform-plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    needs: bootstrap-check
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+      
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+      
+      - name: Terraform Format Check
+        id: fmt
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+      
+      - name: Terraform Init
+        id: init
+        run: terraform init
+      
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+      
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan -var-file=environments/prod.tfvars -no-color -out=tfplan 2>&1 | tee plan-output.txt
+          echo "exitcode=$?" >> $GITHUB_OUTPUT
+        continue-on-error: true
+      
+      - name: Save Plan as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-prod-pr-${{ github.event.pull_request.number }}
+          path: |
+            tfplan
+            plan-output.txt
+          retention-days: 30
+      
+      - name: Create Plan Summary
+        id: summary
+        run: |
+          PLAN_OUTPUT=$(cat plan-output.txt)
+          
+          TO_ADD=$(echo "$PLAN_OUTPUT" | grep -oP 'Plan: \K\d+(?= to add)' || echo "0")
+          TO_CHANGE=$(echo "$PLAN_OUTPUT" | grep -oP ', \K\d+(?= to change)' || echo "0")
+          TO_DESTROY=$(echo "$PLAN_OUTPUT" | grep -oP ', \K\d+(?= to destroy)' || echo "0")
+          
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          ## 📋 Terraform Plan Summary - Datalake Infrastructure
+          
+          **Environment:** Production
+          **Branch:** \`${{ github.head_ref }}\`
+          **Commit:** \`${GITHUB_SHA:0:7}\`
+          
+          ### 📊 Results
+          
+          | Check | Status |
+          |-------|--------|
+          | Format | ${{ steps.fmt.outcome == 'success' && '✅ Passed' || '⚠️ Failed' }} |
+          | Init | ${{ steps.init.outcome == 'success' && '✅ Passed' || '❌ Failed' }} |
+          | Validate | ${{ steps.validate.outcome == 'success' && '✅ Passed' || '❌ Failed' }} |
+          | Plan | ${{ steps.plan.outcome == 'success' && '✅ Passed' || '❌ Failed' }} |
+          
+          ### 🏗️ Infrastructure Changes
+          
+          | Action | Count |
+          |--------|-------|
+          | 🆕 Create | ${TO_ADD} |
+          | 🔄 Change | ${TO_CHANGE} |
+          | 🗑️ Destroy | ${TO_DESTROY} |
+          
+          ### 📦 Resources
+          
+          #### VPC Peering (Cross-Region)
+          - ✅ **Peering**: sa-east-1 (172.31.0.0/16) ↔ us-east-2 (10.20.0.0/16)
+          - ✅ **Latency**: ~120-150ms
+          - ✅ **Cost**: \$0 fixo + \$0.02/GB data transfer
+          
+          #### Amazon MSK (Kafka)
+          - ✅ **Version**: Kafka 3.9.0
+          - ✅ **Brokers**: 2x kafka.t3.small
+          - ✅ **Storage**: 200 GB EBS (2x 100GB)
+          - ✅ **Authentication**: SASL/IAM
+          - ✅ **Encryption**: TLS
+          
+          #### IAM Roles
+          - ✅ **Debezium Role**: IRSA para MSK + Secrets Manager
+          
+          ### 💰 Estimated Monthly Cost
+          - **MSK Cluster**: ~\$70/month
+          - **MSK Storage**: ~\$20/month
+          - **Data Transfer**: ~\$10/month (500GB CDC)
+          - **CloudWatch**: ~\$5/month
+          - **Total Estimated**: ~\$105/month
+          
+          ### 🎯 Next Steps
+          
+          1. ✅ Review the plan carefully
+          2. ✅ Add label **\`terraform:apply\`** to trigger apply
+          3. ✅ Merge will happen automatically after successful apply
+          
+          > ⚠️ **Importante**: MSK leva ~15 minutos para criar!
+          
+          ---
+          
+          📦 **Artifact:** \`terraform-plan-prod-pr-${{ github.event.pull_request.number }}\`
+          
+          <details>
+          <summary>📄 Full Plan Output (click to expand)</summary>
+          
+          \`\`\`terraform
+          $(cat plan-output.txt | tail -150)
+          \`\`\`
+          
+          </details>
+          EOF
+      
+      - name: Comment PR with Plan
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const output = `## 🏗️ Terraform Plan Results - Datalake
+            
+            **Environment:** Production  
+            **Status:** ${{ steps.plan.outcome == 'success' && '✅ Success' || '❌ Failed' }}
+            
+            **Next Steps:**
+            - ✅ Review the plan carefully in the Summary above
+            - ✅ Add label \`terraform:apply\` to trigger apply
+            - ⏱️ MSK creation takes ~15 minutes
+            
+            ⚠️ **Apenas administradores podem adicionar a label terraform:apply**
+            
+            📦 Download plan artifact for detailed review if needed
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+      
+      - name: Plan Status Check
+        if: steps.plan.outcome == 'failure'
+        run: |
+          echo "❌ Terraform plan failed!"
+          exit 1
+      
+      - name: Set Plan Success Status
+        if: steps.plan.outcome == 'success'
+        run: |
+          echo "✅ Terraform plan succeeded!"
+          echo "📋 Review the plan and add label 'terraform:apply' to proceed"
