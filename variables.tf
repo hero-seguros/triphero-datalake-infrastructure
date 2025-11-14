@@ -34,7 +34,7 @@ variable "vpc_sa_east_1_id" {
 variable "kafka_version" {
   description = "Kafka version for MSK"
   type        = string
-  default     = "3.9.0"
+  default     = "3.9.x"
 }
 
 variable "msk_instance_type" {

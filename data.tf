@@ -34,5 +34,10 @@ data "aws_subnets" "public" {
 
 # EKS Cluster (for Debezium integration)
 data "aws_eks_cluster" "main" {
-  name = "${var.project_name}-${var.environment}-cluster"
+  name = "${var.project_name}-${var.environment}"
+}
+
+# EKS OIDC Provider
+data "aws_iam_openid_connect_provider" "eks" {
+  url = data.aws_eks_cluster.main.identity[0].oidc[0].issuer
 }
