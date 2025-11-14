@@ -14,8 +14,8 @@ data "aws_subnets" "private" {
   }
 
   filter {
-    name   = "tag:Type"
-    values = ["private"]
+    name   = "tag:Name"
+    values = ["*private*"]
   }
 }
 
@@ -27,8 +27,8 @@ data "aws_subnets" "public" {
   }
 
   filter {
-    name   = "tag:Type"
-    values = ["public"]
+    name   = "tag:Name"
+    values = ["*public*"]
   }
 }
 
